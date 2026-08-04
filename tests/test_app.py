@@ -9,8 +9,10 @@ from src.app import app, activities
 
 @pytest.fixture(autouse=True)
 def reset_activities():
+    # Arrange
     original_state = deepcopy(activities)
     yield
+    # Cleanup
     activities.clear()
     activities.update(original_state)
 
@@ -18,23 +20,61 @@ def reset_activities():
 client = TestClient(app)
 
 
-def test_remove_participant_unregisters_the_student():
+def test_signup_adds_participant_to_activity():
+    # Arrange
+    activity_name = "Chess Club"
+    email = "student@example.com"
+
+    # Act
     response = client.post(
-        f"/activities/Chess%20Club/signup?email={quote('student@example.com')}"
+        f"/activities/{quote(activity_name)}/signup?email={quote(email)}"
     )
+
+    # Assert
     assert response.status_code == 200
+    assert email in activities[activity_name]["participants"]
 
-    delete_response = client.delete(
-        f"/activities/Chess%20Club/participants/{quote('student@example.com')}"
+
+def test_duplicate_signup_returns_400():
+    # Arrange
+    activity_name = "Chess Club"
+    email = "student@example.com"
+    client.post(f"/activities/{quote(activity_name)}/signup?email={quote(email)}")
+
+    # Act
+    response = client.post(
+        f"/activities/{quote(activity_name)}/signup?email={quote(email)}"
     )
 
-    assert delete_response.status_code == 200
-    assert "student@example.com" not in activities["Chess Club"]["participants"]
+    # Assert
+    assert response.status_code == 400
+
+
+def test_remove_participant_unregisters_the_student():
+    # Arrange
+    activity_name = "Chess Club"
+    email = "student@example.com"
+    client.post(f"/activities/{quote(activity_name)}/signup?email={quote(email)}")
+
+    # Act
+    response = client.delete(
+        f"/activities/{quote(activity_name)}/participants/{quote(email)}"
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert email not in activities[activity_name]["participants"]
 
 
 def test_remove_participant_returns_404_when_student_is_not_registered():
+    # Arrange
+    activity_name = "Chess Club"
+    email = "missing@example.com"
+
+    # Act
     response = client.delete(
-        f"/activities/Chess%20Club/participants/{quote('missing@example.com')}"
+        f"/activities/{quote(activity_name)}/participants/{quote(email)}"
     )
 
+    # Assert
     assert response.status_code == 404
